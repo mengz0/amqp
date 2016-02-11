@@ -330,6 +330,11 @@ local function negotiate_connection_tune_params(ctx,method)
    
 end
 
+local function set_state(ctx, channel_state, connection_state)
+   ctx.channel_state = channel_state
+   ctx.connection_state = connection_state
+end
+
 function amqp.setup(this)
    
    local sock = this.sock
@@ -351,8 +356,7 @@ function amqp.setup(this)
       local ok, err = verify_capablities(this,res.method)
       if not ok then
 	 -- in order to close the socket without sending futher data
-	 this.channel_state = CLOSED
-	 this.connection_state = CLOSED
+	 set_state(this,c.state.CLOSED, c.state.CLOSED)
 	 return nil, err
       end
    end
@@ -475,10 +479,6 @@ local function error_string(err)
    return "?"
 end
 
-local function set_state(ctx, channel_state, connection_state)
-   ctx.channel_state = channel_state
-   ctx.connection_state = connection_state
-end
       
 --
 -- consumer
