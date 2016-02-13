@@ -1239,8 +1239,8 @@ function _M.new_method_frame(channel,class_id,method_id)
    return frame
 end
 
-function _M.encode(this)
-   local typ = this.typ
+function _M:encode()
+   local typ = self.typ
    if not typ then
       local err = "no frame type specified."
       logger.error("[frame.encode] " .. err)
@@ -1248,13 +1248,13 @@ function _M.encode(this)
    end
    
    if typ == c.frame.METHOD_FRAME then
-      return encode_method_frame(this)      
+      return encode_method_frame(self)      
    elseif typ == c.frame.HEADER_FRAME then
-      return encode_header_frame(this)
+      return encode_header_frame(self)
    elseif typ == c.frame.BODY_FRAME then
-      return encode_body_frame(this)
+      return encode_body_frame(self)
    elseif typ == c.frame.HEARTBEAT_FRAME then
-      return encode_heartbeat_frame(this)
+      return encode_heartbeat_frame(self)
    else
       local err = "invalid frame type" .. tostring(typ)
       logger.error("[frame.encode]" .. err)
@@ -1340,7 +1340,7 @@ function _M.wire_method_frame(ctx,frame)
       return nil,"[wire_method_frame]" .. err
    end
 
-   logger.info("[wire_method_frame] wired a frame.", "[class_id]: ", frame.class_id, "[method_id]: ", frame.method_id)
+   logger.dbg("[wire_method_frame] wired a frame.", "[class_id]: ", frame.class_id, "[method_id]: ", frame.method_id)
    if frame.method ~= nil and not frame.method.no_wait then
       local f = _M.consume_frame(ctx)
       if f then

@@ -111,8 +111,8 @@ end
 --
 -- connect to the broker
 --
-function amqp.connect(this, ...)
-   local sock = this.sock
+function amqp:connect(...)
+   local sock = self.sock
    if not sock then
       return nil, "not initialized"
    end
@@ -123,8 +123,8 @@ function amqp.connect(this, ...)
       return nil, err
    end
    
-   if this.opts.ssl then
-      return sslhandshake(this)
+   if self.opts.ssl then
+      return sslhandshake(self)
    end
    return true
 end
@@ -132,8 +132,8 @@ end
 --
 -- to close the socket
 --
-function amqp.close(this)
-   local sock = this.sock
+function amqp:close()
+   local sock = self.sock
    if not sock then
       return nil, "not initialized"
    end
@@ -196,7 +196,7 @@ local function connection_tune_ok(ctx)
    if not bytes then
       return nil,"[connection_tune_ok]" .. err
    end
-   logger.info("[connection_tune_ok] wired a frame.", "[class_id]: ", f.class_id, "[method_id]: ", f.method_id)
+   logger.dbg("[connection_tune_ok] wired a frame.", "[class_id]: ", f.class_id, "[method_id]: ", f.method_id)
    return true
 end
 
@@ -256,7 +256,7 @@ local function channel_open(ctx)
       return nil,"[channel_open]" .. err
    end
 
-   logger.info("[channel_open] wired a frame.", "[class_id]: ", f.class_id, "[method_id]: ", f.method_id)
+   logger.dbg("[channel_open] wired a frame.", "[class_id]: ", f.class_id, "[method_id]: ", f.method_id)
    local res = frame.consume_frame(ctx)
    if res then
       logger.dbg("[channel_open] channel: ",res.channel)
@@ -335,17 +335,17 @@ local function set_state(ctx, channel_state, connection_state)
    ctx.connection_state = connection_state
 end
 
-function amqp.setup(this)
+function amqp:setup()
    
-   local sock = this.sock
+   local sock = self.sock
    if not sock then
       return nil, "not initialized"
    end
 
-   -- 30 seconds read timeout
-   sock:settimeout(30)
+   -- configurable but 30 seconds read timeout
+   sock:settimeout(self.opts.read_timeout or 30000)
    
-   local res, err = frame.wire_protocol_header(this)
+   local res, err = frame.wire_protocol_header(self)
    if not res then
       logger.error("[amqp.setup] wire_protocol_header failed: " .. err)
       return nil, err
@@ -353,70 +353,70 @@ function amqp.setup(this)
 
    if res.method then
       logger.dbg("[amqp.setup] connection_start: ",res.method)
-      local ok, err = verify_capablities(this,res.method)
+      local ok, err = verify_capablities(self,res.method)
       if not ok then
 	 -- in order to close the socket without sending futher data
-	 set_state(this,c.state.CLOSED, c.state.CLOSED)
+	 set_state(self,c.state.CLOSED, c.state.CLOSED)
 	 return nil, err
       end
    end
 
-   local res, err = connection_start_ok(this)
+   local res, err = connection_start_ok(self)
    if not res then
       logger.error("[amqp.setup] connection_start_ok failed: " .. err)
       return nil, err
    end
 
-   negotiate_connection_tune_params(this,res.method)   
+   negotiate_connection_tune_params(self,res.method)   
 
-   local res, err = connection_tune_ok(this)
+   local res, err = connection_tune_ok(self)
    if not res then
       logger.error("[amqp.setup] connection_tune_ok failed: " .. err)
       return nil, err
    end
    
-   local res, err = connection_open(this)
+   local res, err = connection_open(self)
    if not res then
       logger.error("[amqp.setup] connection_open failed: " .. err)
       return nil, err
    end
    
-   this.connection_state = c.state.ESTABLISHED
+   self.connection_state = c.state.ESTABLISHED
    
-   local res, err = channel_open(this)
+   local res, err = channel_open(self)
    if not res then
       logger.error("[amqp.setup] channel_open failed: " .. err)
       return nil, err
    end
-   this.channel_state = c.state.ESTABLISHED
+   self.channel_state = c.state.ESTABLISHED
    return true
 end
 
 --
 -- close channel and connection if needed.
 --
-function amqp.teardown(this,reason)
+function amqp:teardown(reason)
 
-   if this.channel_state == c.state.ESTABLISHED then
-      local ok, err = channel_close(this,reason)
+   if self.channel_state == c.state.ESTABLISHED then
+      local ok, err = channel_close(self,reason)
       if not ok then
 	 logger.error("[channel_close] err: ",err)
       end
-   elseif this.channel_state == c.state.CLOSE_WAIT then
-      local ok, err = channel_close_ok(this)
+   elseif self.channel_state == c.state.CLOSE_WAIT then
+      local ok, err = channel_close_ok(self)
       if not ok then
 	 logger.error("[channel_close_ok] err: ",err)
       end
 	 
    end
 
-   if this.connection_state == c.state.ESTABLISHED then
-      local ok, err = connection_close(this,reason)
+   if self.connection_state == c.state.ESTABLISHED then
+      local ok, err = connection_close(self,reason)
       if not ok then
 	 logger.error("[connection_close] err: ",err)
       end
-   elseif this.connection_state == c.state.CLOSE_WAIT then
-      local ok, err = connection_close_ok(this)
+   elseif self.connection_state == c.state.CLOSE_WAIT then
+      local ok, err = connection_close_ok(self)
       if not ok then
 	 logger.error("[connection_close_ok] err: ",err)
       end
@@ -483,17 +483,17 @@ end
 --
 -- consumer
 --
-function amqp.consume(this)
+function amqp:consume()
 
-   local ok, err = this:setup()
+   local ok, err = self:setup()
    if not ok then
-      this:teardown()
+      self:teardown()
       return nil, err
    end
 
-   local ok, err = prepare_to_consume(this)
+   local ok, err = prepare_to_consume(self)
    if not ok then
-      this:teardown()
+      self:teardown()
       return nil, err
    end
 
@@ -507,18 +507,18 @@ function amqp.consume(this)
       ::continue::
 --
 	 
-      local f, err = frame.consume_frame(this)
+      local f, err = frame.consume_frame(self)
       if not f then
 	 logger.error("[amqp.consume]",error_string(err))
 
 	 if err == "closed" then
-	    set_state(this, c.state.CLOSED, c.state.CLOSED)
+	    set_state(self, c.state.CLOSED, c.state.CLOSED)
 	    logger.error("[amqp.consume] socket closed.")
 	    break
 	 end
 
 	 if err == "wantread" then
-	    set_state(this, c.state.CLOSED, c.state.CLOSED)
+	    set_state(self, c.state.CLOSED, c.state.CLOSED)
 	    logger.error("[amqp.consume] SSL socket needs to dohandshake again.")
 	    break
 	 end
@@ -529,20 +529,20 @@ function amqp.consume(this)
 	    logger.info("[amqp.consume] timeouts inc. [ts]: ",now)
 	    hb.timeouts = bor(lshift(hb.timeouts,1),1)
 	    hb.last = now
-	    local ok, err = frame.wire_heartbeat(this)
+	    local ok, err = frame.wire_heartbeat(self)
 	    if not ok then
-	       logger.info("[heartbeat]","pong error: " .. error_string(err) .. "[ts]: ", hb.last)
+	       logger.error("[heartbeat]","pong error: " .. error_string(err) .. "[ts]: ", hb.last)
 	    else
-	       logger.info("[heartbeat]","pong sent. [ts]: ",hb.last)
+	       logger.dbg("[heartbeat]","pong sent. [ts]: ",hb.last)
 	    end
 	 end
 
-	 if timedout(this,hb.timeouts) then
+	 if timedout(self,hb.timeouts) then
 	    logger.error("[amqp.consume] timedout. [ts]: " .. now)
 	    break
 	 end
 
-	 logger.info("[amqp.consume] continue consuming")
+	 logger.dbg("[amqp.consume] continue consuming")
 	 goto continue
       end
       
@@ -550,13 +550,13 @@ function amqp.consume(this)
 
 	 if f.class_id == c.class.CHANNEL then
 	    if f.method_id == c.method.channel.CLOSE then
-	       set_state(this, c.state.CLOSE_WAIT, this.connection_state)
+	       set_state(self, c.state.CLOSE_WAIT, self.connection_state)
 	       logger.info("[channel close method]", f.method.reply_code, f.method.reply_text)
 	       break
 	    end
 	 elseif f.class_id == c.class.CONNECTION then
 	    if f.method_id == c.method.connection.CLOSE then
-	       set_state(this, c.state.CLOSED, c.state.CLOSE_WAIT)
+	       set_state(self, c.state.CLOSED, c.state.CLOSE_WAIT)
 	       logger.info("[connection close method]", f.method.reply_code, f.method.reply_text)
 	       break
 	    end
@@ -573,24 +573,27 @@ function amqp.consume(this)
 	 logger.info("[frame.properties]",f.properties)
       elseif f.type == c.frame.BODY_FRAME then
 	 
-	 if this.opts.callback then
-	    this.opts.callback(f.body)
+	 if self.opts.callback then
+	    local status, err = pcall(self.opts.callback,f.body)
+	    if not status then
+	       logger.error("calling callback failed: " .. err)
+	    end
 	 end
-	 logger.info("[body]",f.body)
+	 logger.dbg("[body]",f.body)
       elseif f.type == c.frame.HEARTBEAT_FRAME then
 	 hb.last = os.time()
 	 logger.info("[heartbeat]","ping received. [ts]: ",hb.last)
 	 hb.timeouts = band(lshift(hb.timeouts,1),0)
-	 local ok, err = frame.wire_heartbeat(this)
+	 local ok, err = frame.wire_heartbeat(self)
 	 if not ok then
-	    logger.info("[heartbeat]","pong error: " .. error_string(err) .. "[ts]: ", hb.last)
+	    logger.error("[heartbeat]","pong error: " .. error_string(err) .. "[ts]: ", hb.last)
 	 else
-	    logger.info("[heartbeat]","pong sent. [ts]: ",hb.last)
+	    logger.dbg("[heartbeat]","pong sent. [ts]: ",hb.last)
 	 end
       end
    end
 
-   this:teardown()
+   self:teardown()
    return nil
 end
 
@@ -598,22 +601,22 @@ end
 -- publisher
 --
 
-function amqp.publish(this,payload)
+function amqp:publish(payload)
 
    local size = #payload
-   local ok, err = amqp.basic_publish(this)
+   local ok, err = amqp.basic_publish(self)
    if not ok then
       logger.error("[amqp.publish] failed: " .. err)
       return nil, err
    end
 
-   local ok, err = frame.wire_header_frame(this,size)
+   local ok, err = frame.wire_header_frame(self,size)
    if not ok then
       logger.error("[amqp.publish] failed: " .. err)
       return nil, err
    end
    
-   local ok, err = frame.wire_body_frame(this,payload)
+   local ok, err = frame.wire_body_frame(self,payload)
    if not ok then
       logger.error("[amqp.publish] failed: " .. err)
       return nil, err
@@ -625,121 +628,121 @@ end
 --
 -- queue
 --
-function amqp.queue_declare(ctx,opts)
+function amqp:queue_declare(opts)
 
    opts = opts or {}
 
-   if not opts.queue and not ctx.opts.queue then
+   if not opts.queue and not self.opts.queue then
       return nil, "[queue_declare] queue is not specified."
    end
    
-   local f = frame.new_method_frame(ctx.channel or 1,
+   local f = frame.new_method_frame(self.channel or 1,
 				     c.class.QUEUE,
 				     c.method.queue.DECLARE)
 
    f.method = {
-      queue = opts.queue or ctx.opts.queue,
+      queue = opts.queue or self.opts.queue,
       passive = opts.passive or false,
       durable = opts.durable or false,
       exclusive = opts.exclusive or false,
       auto_delete = opts.auto_delete or true,
-      no_wait = ctx.opts.no_wait or true
+      no_wait = self.opts.no_wait or true
    }
-   return frame.wire_method_frame(ctx,f)
+   return frame.wire_method_frame(self,f)
 end
 
-function amqp.queue_bind(ctx,opts)
+function amqp:queue_bind(opts)
 
    opts = opts or {}
 
-   if not opts.queue and not ctx.opts.queue then
+   if not opts.queue and not self.opts.queue then
       return nil, "[queue_bind] queue is not specified."
    end
    
-   local f = frame.new_method_frame(ctx.channel or 1,
+   local f = frame.new_method_frame(self.channel or 1,
 				     c.class.QUEUE,
 				     c.method.queue.BIND)
 
    f.method = {
-      queue = opts.queue or ctx.opts.queue,
-      exchange = opts.exchange or ctx.opts.exchange,
+      queue = opts.queue or self.opts.queue,
+      exchange = opts.exchange or self.opts.exchange,
       routing_key = opts.routing_key or "",
-      no_wait = ctx.opts.no_wait or false
+      no_wait = self.opts.no_wait or false
    }
 
-   return frame.wire_method_frame(ctx,f)
+   return frame.wire_method_frame(self,f)
 end
 
-function amqp.queue_unbind(ctx,opts)
+function amqp:queue_unbind(opts)
 
    opts = opts or {}
 
-   if not opts.queue and not ctx.opts.queue then
+   if not opts.queue and not self.opts.queue then
       return nil, "[queue_unbind] queue is not specified."
    end
    
-   local f = frame.new_method_frame(ctx.channel or 1,
+   local f = frame.new_method_frame(self.channel or 1,
 				     c.class.QUEUE,
 				     c.method.queue.UNBIND)
 
    f.method = {
-      queue = opts.queue or ctx.opts.queue,
-      exchange = opts.exchange or ctx.opts.exchange,
+      queue = opts.queue or self.opts.queue,
+      exchange = opts.exchange or self.opts.exchange,
       routing_key = opts.routing_key or "",
    }
 
-   return frame.wire_method_frame(ctx,f)
+   return frame.wire_method_frame(self,f)
 end
 
-function amqp.queue_delete(ctx,opts)
+function amqp:queue_delete(opts)
 
    opts = opts or {}
 
-   if not opts.queue and not ctx.opts.queue then
+   if not opts.queue and not self.opts.queue then
       return nil, "[queue_delete] queue is not specified."
    end
 
-   local f = frame.new_method_frame(ctx.channel or 1,
+   local f = frame.new_method_frame(self.channel or 1,
 				     c.class.QUEUE,
 				     c.method.queue.DELETE)
 
    f.method = {
-      queue = opts.queue or ctx.opts.queue,
+      queue = opts.queue or self.opts.queue,
       if_unused = opts.if_unused or false,
       if_empty = opts.if_empty or false,
-      no_wait = ctx.opts.no_wait or false
+      no_wait = self.opts.no_wait or false
    }
 
-   return frame.wire_method_frame(ctx,f)
+   return frame.wire_method_frame(self,f)
 end
 
 --
 -- exchange
 --
-function amqp.exchange_declare(ctx,opts)
+function amqp:exchange_declare(opts)
 
    opts = opts or {}
 
-   local f = frame.new_method_frame(ctx.channel or 1,
+   local f = frame.new_method_frame(self.channel or 1,
 				     c.class.EXCHANGE,
 				     c.method.exchange.DECLARE)
 
 
    
    f.method = {
-      exchange = opts.exchange or ctx.opts.exchange,
+      exchange = opts.exchange or self.opts.exchange,
       typ = opts.typ or "topic",
       passive = opts.passive or false,
       durable = opts.passive or false,
       auto_delete = opts.auto_delete or false,
       internal = opts.internal or false,
-      no_wait = ctx.opts.no_wait or false
+      no_wait = self.opts.no_wait or false
    }
 
-   return frame.wire_method_frame(ctx,f)
+   return frame.wire_method_frame(self,f)
 end
 
-function amqp.exchange_bind(ctx,opts)
+function amqp:exchange_bind(opts)
 
    if not opts then
       return nil, "[exchange_bind] opts is required."
@@ -753,7 +756,7 @@ function amqp.exchange_bind(ctx,opts)
       return nil, "[exchange_bind] destination is required."
    end
 
-   local f = frame.new_method_frame(ctx.channel or 1,
+   local f = frame.new_method_frame(self.channel or 1,
 				     c.class.EXCHANGE,
 				     c.method.exchange.BIND)
    
@@ -761,13 +764,13 @@ function amqp.exchange_bind(ctx,opts)
       destination = opts.destination,
       source = opts.source,
       routing_key = opts.routing_key or "",
-      no_wait = ctx.opts.no_wait or false
+      no_wait = self.opts.no_wait or false
    }
 
-   return frame.wire_method_frame(ctx,f)
+   return frame.wire_method_frame(self,f)
 end
 
-function amqp.exchange_unbind(ctx,opts)
+function amqp:exchange_unbind(opts)
 
    if not opts then
       return nil, "[exchange_unbind] opts is required."
@@ -781,7 +784,7 @@ function amqp.exchange_unbind(ctx,opts)
       return nil, "[exchange_unbind] destination is required."
    end
 
-   local f = frame.new_method_frame(ctx.channel or 1,
+   local f = frame.new_method_frame(self.channel or 1,
 				     c.class.EXCHANGE,
 				     c.method.exchange.UNBIND)
    
@@ -789,72 +792,72 @@ function amqp.exchange_unbind(ctx,opts)
       destination = opts.destination,
       source = opts.source,
       routing_key = opts.routing_key or "",
-      no_wait = ctx.opts.no_wait or false
+      no_wait = self.opts.no_wait or false
    }
 
-   return frame.wire_method_frame(ctx,f)
+   return frame.wire_method_frame(self,f)
 end
 
-function amqp.exchange_delete(ctx,opts)
+function amqp:exchange_delete(opts)
 
    opts = opts or {}
 
-   local f = frame.new_method_frame(ctx.channel or 1,
+   local f = frame.new_method_frame(self.channel or 1,
 				     c.class.EXCHANGE,
 				     c.method.exchange.DELETE)
    
    f.method = {
-      exchange = opts.exchange or ctx.opts.exchange,
+      exchange = opts.exchange or self.opts.exchange,
       if_unused = opts.is_unused or true,
-      no_wait = ctx.opts.no_wait or false
+      no_wait = self.opts.no_wait or false
    }
 
-   return frame.wire_method_frame(ctx,f)
+   return frame.wire_method_frame(self,f)
 end
 
 --
 -- basic
 --
-function amqp.basic_consume(ctx,opts)
+function amqp:basic_consume(opts)
 
    opts = opts or {}
 
-   if not opts.queue and not ctx.opts.queue then
+   if not opts.queue and not self.opts.queue then
       return nil, "[basic_consume] queue is not specified."
    end
 
-   local f = frame.new_method_frame(ctx.channel or 1,
+   local f = frame.new_method_frame(self.channel or 1,
 				     c.class.BASIC,
 				     c.method.basic.CONSUME)
 
    f.method = {
-      queue = opts.queue or ctx.opts.queue,
+      queue = opts.queue or self.opts.queue,
       no_local = opts.no_local or false,
       no_ack = opts.no_ack or true,
       exclusive = opts.exclusive or false,
-      no_wait = ctx.opts.no_wait or false
+      no_wait = self.opts.no_wait or false
    }
 
-   return frame.wire_method_frame(ctx,f)
+   return frame.wire_method_frame(self,f)
 end
 
 
-function amqp.basic_publish(ctx,opts)
+function amqp:basic_publish(opts)
 
    opts = opts or {}
    
-   local f = frame.new_method_frame(ctx.channel or 1,
+   local f = frame.new_method_frame(self.channel or 1,
 				     c.class.BASIC,
 				     c.method.basic.PUBLISH)
    f.method = {
-      exchange = opts.exchange or ctx.opts.exchange,
-      routing_key = opts.routing_key or ctx.opts.routing_key or "",
+      exchange = opts.exchange or self.opts.exchange,
+      routing_key = opts.routing_key or self.opts.routing_key or "",
       mandatory = opts.mandatory or false,
       immediate = opts.immediate or false
    }
 
    local msg = f:encode()
-   local sock = ctx.sock
+   local sock = self.sock
    local bytes,err = sock:send(msg)
    if not bytes then
       return nil,"[basic_publish]" .. err
