@@ -509,8 +509,13 @@ function amqp:consume()
 	 
       local f, err = frame.consume_frame(self)
       if not f then
-	 logger.error("[amqp.consume]",error_string(err))
 
+	 -- in order to send the heartbeat,
+	 -- the very read op need be awaken up periodically, so the timeout is expected.
+	 if err ~= "timeout" then
+	    logger.error("[amqp.consume]",error_string(err))
+	 end
+	 
 	 if err == "closed" then
 	    set_state(self, c.state.CLOSED, c.state.CLOSED)
 	    logger.error("[amqp.consume] socket closed.")
