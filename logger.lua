@@ -29,7 +29,7 @@ if _G.ngx then
    DEBUG = ngx.DEBUG
 end
 
-local level_ = DEBUG
+local level_ = INFO
 
 local function to_string(v)
    if v == nil then
