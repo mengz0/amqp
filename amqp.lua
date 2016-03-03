@@ -479,6 +479,9 @@ local function error_string(err)
    return "?"
 end
 
+local function exiting()
+   return _G.ngx and _G.ngx.worker and _G.ngx.worker.exiting()
+end
       
 --
 -- consumer
@@ -507,22 +510,28 @@ function amqp:consume()
       ::continue::
 --
 	 
-      local f, err = frame.consume_frame(self)
+      local f, err0 = frame.consume_frame(self)
       if not f then
 
+	 if exiting() then
+	    err = "exiting"
+	    break
+	 end
 	 -- in order to send the heartbeat,
 	 -- the very read op need be awaken up periodically, so the timeout is expected.
-	 if err ~= "timeout" then
-	    logger.error("[amqp.consume]",error_string(err))
+	 if err0 ~= "timeout" then
+	    logger.error("[amqp.consume]",error_string(err0))
 	 end
 	 
-	 if err == "closed" then
+	 if err0 == "closed" then
+	    err = err0
 	    set_state(self, c.state.CLOSED, c.state.CLOSED)
 	    logger.error("[amqp.consume] socket closed.")
 	    break
 	 end
 
-	 if err == "wantread" then
+	 if err0 == "wantread" then
+	    err = err0
 	    set_state(self, c.state.CLOSED, c.state.CLOSED)
 	    logger.error("[amqp.consume] SSL socket needs to dohandshake again.")
 	    break
@@ -534,20 +543,21 @@ function amqp:consume()
 	    logger.info("[amqp.consume] timeouts inc. [ts]: ",now)
 	    hb.timeouts = bor(lshift(hb.timeouts,1),1)
 	    hb.last = now
-	    local ok, err = frame.wire_heartbeat(self)
+	    local ok, err0 = frame.wire_heartbeat(self)
 	    if not ok then
-	       logger.error("[heartbeat]","pong error: " .. error_string(err) .. "[ts]: ", hb.last)
+	       logger.error("[heartbeat]","pong error: " .. error_string(err0) .. "[ts]: ", hb.last)
 	    else
 	       logger.dbg("[heartbeat]","pong sent. [ts]: ",hb.last)
 	    end
 	 end
 
 	 if timedout(self,hb.timeouts) then
+	    err = "heartbeat timeout"
 	    logger.error("[amqp.consume] timedout. [ts]: " .. now)
 	    break
 	 end
 
-	 logger.dbg("[amqp.consume] continue consuming")
+	 logger.dbg("[amqp.consume] continue consuming " .. err0)
 	 goto continue
       end
       
@@ -579,9 +589,9 @@ function amqp:consume()
       elseif f.type == c.frame.BODY_FRAME then
 	 
 	 if self.opts.callback then
-	    local status, err = pcall(self.opts.callback,f.body)
+	    local status, err0 = pcall(self.opts.callback,f.body)
 	    if not status then
-	       logger.error("calling callback failed: " .. err)
+	       logger.error("calling callback failed: " .. err0)
 	    end
 	 end
 	 logger.dbg("[body]",f.body)
@@ -589,9 +599,9 @@ function amqp:consume()
 	 hb.last = os.time()
 	 logger.info("[heartbeat]","ping received. [ts]: ",hb.last)
 	 hb.timeouts = band(lshift(hb.timeouts,1),0)
-	 local ok, err = frame.wire_heartbeat(self)
+	 local ok, err0 = frame.wire_heartbeat(self)
 	 if not ok then
-	    logger.error("[heartbeat]","pong error: " .. error_string(err) .. "[ts]: ", hb.last)
+	    logger.error("[heartbeat]","pong error: " .. error_string(err0) .. "[ts]: ", hb.last)
 	 else
 	    logger.dbg("[heartbeat]","pong sent. [ts]: ",hb.last)
 	 end
@@ -599,7 +609,7 @@ function amqp:consume()
    end
 
    self:teardown()
-   return nil
+   return nil,err
 end
 
 --
