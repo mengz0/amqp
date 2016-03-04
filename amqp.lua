@@ -117,6 +117,9 @@ function amqp:connect(...)
       return nil, "not initialized"
    end
 
+   -- configurable but 5 seconds timeout
+   sock:settimeout(self.opts.connect_timeout or 5000)
+
    local ok, err = sock:connect(...)
    if not ok then
       logger.error("[amqp.connect] failed: ", err)
@@ -344,7 +347,7 @@ function amqp:setup()
 
    -- configurable but 30 seconds read timeout
    sock:settimeout(self.opts.read_timeout or 30000)
-   
+
    local res, err = frame.wire_protocol_header(self)
    if not res then
       logger.error("[amqp.setup] wire_protocol_header failed: " .. err)
