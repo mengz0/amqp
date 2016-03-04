@@ -578,14 +578,14 @@ function amqp:consume()
 	 elseif f.class_id == c.class.BASIC then
 	    if f.method_id == c.method.basic.DELIVER then
 	       if f.method ~= nil then
-		  logger.info("[basic_deliver] ", f.method)
+		  logger.dbg("[basic_deliver] ", f.method)
 	       end
 	    end
 	 end
       elseif f.type == c.frame.HEADER_FRAME then
-	 logger.info(format("[header] class_id: %d weight: %d, body_size: %d",
+	 logger.dbg(format("[header] class_id: %d weight: %d, body_size: %d",
 			    f.class_id, f.weight, f.body_size))
-	 logger.info("[frame.properties]",f.properties)
+	 logger.dbg("[frame.properties]",f.properties)
       elseif f.type == c.frame.BODY_FRAME then
 	 
 	 if self.opts.callback then
