@@ -5,12 +5,27 @@
 module("buffer",package.seeall)
 
 local logger = require "logger"
-local bit = require "bit"
-local band = bit.band
-local bor = bit.bor
-local lshift = bit.lshift
-local rshift = bit.rshift
-local tohex = bit.tohex
+
+-- Try to load bit library
+local bit
+local have_bit = pcall(function() bit = require "bit" end)
+
+-- If we have the bit library, use that, otherwise, use built-in operators
+-- (which are only available in Lua 5.3)
+local band, bor, lshift, rshift, tohex
+if have_bit then
+  band = bit.band
+  bor = bit.bor
+  lshift = bit.lshift
+  rshift = bit.rshift
+  tohex = bit.tohex
+else
+  band = function(a,b) return a & b end
+  bor = function(a,b) return a | b end
+  lshift = function(a,b) return a << b end
+  rshift = function(a,b) return a >> b end
+  tohex = function(a) return string.format("%x", a) end
+end
 
 local concat = table.concat
 local sub = string.sub
@@ -190,7 +205,7 @@ function _M:put_i64(i)
 
    -- rshift has not support for 64bit?
    -- side effect is that it will rotate for shifts bigger than 32bit
-   local hi = band(i/4294967296,0x0ffffffff)
+   local hi = band(math.floor(i/4294967296),0x0ffffffff)
    local lo = band(i, 0x0ffffffff)
    self:put_i32(hi)
    self:put_i32(lo)

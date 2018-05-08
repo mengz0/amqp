@@ -12,9 +12,20 @@ local c = require "consts"
 local buffer = require "buffer"
 local logger = require "logger"
 
-local bit = require "bit"
-local band = bit.band
-local bor = bit.bor
+-- Try to load bit library
+local bit
+local have_bit = pcall(function() bit = require "bit" end)
+
+-- If we have the bit library, use that, otherwise, use built-in operators
+-- (which are only available in Lua 5.3)
+local band, bor
+if have_bit then
+  band = bit.band
+  bor = bit.bor
+else
+  band = function(a,b) return a & b end
+  bor = function(a,b) return a | b end
+end
 
 local byte = string.byte
 local format = string.format
