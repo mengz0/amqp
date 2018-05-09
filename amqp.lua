@@ -9,25 +9,7 @@ local frame = require "frame"
 local logger = require "logger"
 
 -- Try to load bit library
-local bit
-local have_bit = pcall(function() bit = require "bit" end)
-
--- If we have the bit library, use that, otherwise, use built-in operators
--- (which are only available in Lua 5.3)
-local band, bor, lshift, rshift, tohex
-if have_bit then
-  band = bit.band
-  bor = bit.bor
-  lshift = bit.lshift
-  rshift = bit.rshift
-  tohex = bit.tohex
-else
-  band = function(a,b) return a & b end
-  bor = function(a,b) return a | b end
-  lshift = function(a,b) return a << b end
-  rshift = function(a,b) return a >> b end
-  tohex = function(a) return string.format("%x", a) end
-end
+local bit = require "bitopers"
 
 local format = string.format
 local gmatch = string.gmatch
@@ -481,7 +463,7 @@ local function timedout(ctx, timeouts)
    local threshold = ctx.threshold or 4
    local c = 0
    for i = 1, window do
-      if band(rshift(timeouts,i-1),1) ~= 0 then
+      if bit.band(bit.rshift(timeouts,i-1),1) ~= 0 then
 	 c = c + 1
       end
    end
@@ -558,7 +540,7 @@ function amqp:consume()
 	 local now = os.time()
 	 if now - hb.last > c.DEFAULT_HEARTBEAT then
 	    logger.info("[amqp.consume] timeouts inc. [ts]: ",now)
-	    hb.timeouts = bor(lshift(hb.timeouts,1),1)
+	    hb.timeouts = bit.bor(bit.lshift(hb.timeouts,1),1)
 	    hb.last = now
 	    local ok, err0 = frame.wire_heartbeat(self)
 	    if not ok then
@@ -615,7 +597,7 @@ function amqp:consume()
       elseif f.type == c.frame.HEARTBEAT_FRAME then
 	 hb.last = os.time()
 	 logger.info("[heartbeat]","ping received. [ts]: ",hb.last)
-	 hb.timeouts = band(lshift(hb.timeouts,1),0)
+	 hb.timeouts = bit.band(bit.lshift(hb.timeouts,1),0)
 	 local ok, err0 = frame.wire_heartbeat(self)
 	 if not ok then
 	    logger.error("[heartbeat]","pong error: " .. error_string(err0) .. "[ts]: ", hb.last)

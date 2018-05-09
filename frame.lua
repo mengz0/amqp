@@ -13,19 +13,7 @@ local buffer = require "buffer"
 local logger = require "logger"
 
 -- Try to load bit library
-local bit
-local have_bit = pcall(function() bit = require "bit" end)
-
--- If we have the bit library, use that, otherwise, use built-in operators
--- (which are only available in Lua 5.3)
-local band, bor
-if have_bit then
-  band = bit.band
-  bor = bit.bor
-else
-  band = function(a,b) return a & b end
-  bor = function(a,b) return a | b end
-end
+local bit = require("bitopers")
 
 local byte = string.byte
 local format = string.format
@@ -35,23 +23,23 @@ local _M = {}
 local function declare_exchange_flags(method)
    local bits = 0
    if method.passive then
-      bits = bor(bits,1)
+      bits = bit.bor(bits,1)
    end
    
    if method.durable then
-      bits = bor(bits, 2)
+      bits = bit.bor(bits, 2)
    end
 
    if method.auto_delete then
-      bits = bor(bits, 4)
+      bits = bit.bor(bits, 4)
    end
 
    if method.internal then
-      bits = bor(bits,8)
+      bits = bit.bor(bits,8)
    end
 
    if method.no_wait then
-      bits = bor(bits, 16)
+      bits = bit.bor(bits, 16)
    end
    
    return bits
@@ -60,23 +48,23 @@ end
 local function declare_queue_flags(method)
    local bits = 0
    if method.passive then
-      bits = bor(bits,1)
+      bits = bit.bor(bits,1)
    end
    
    if method.durable then
-      bits = bor(bits, 2)
+      bits = bit.bor(bits, 2)
    end
 
    if method.exclusive then
-      bits = bor(bits, 4)
+      bits = bit.bor(bits, 4)
    end
 
    if method.auto_delete then
-      bits = bor(bits, 8)
+      bits = bit.bor(bits, 8)
    end
 
    if method.no_wait then
-      bits = bor(bits, 16)
+      bits = bit.bor(bits, 16)
    end
    
    return bits
@@ -85,19 +73,19 @@ end
 local function basic_consume_flags(method)
    local bits = 0
    if method.no_local then
-      bits = bor(bits,1)
+      bits = bit.bor(bits,1)
    end
 
    if method.no_ack then
-      bits = bor(bits, 2)
+      bits = bit.bor(bits, 2)
    end
 
    if method.exclusive then
-      bits = bor(bits, 4)
+      bits = bit.bor(bits, 4)
    end
 
    if method.no_wait then
-      bits = bor(bits, 8)
+      bits = bit.bor(bits, 8)
    end
    return bits
 end
@@ -315,7 +303,7 @@ local methods_ = {
 	 name = "flow_ok",
 	 r = function(b)
 	    local bits = b:read_get_i8()
-	    return { active = band(bits,1) }
+	    return { active = bit.band(bits,1) }
 	 end,
 	 w = function(method)
 	    local b = buffer.new()
@@ -410,10 +398,10 @@ local methods_ = {
 	    b:put_short_string(method.exchange)
 	    local bits = 0
 	    if method.if_unused then
-	       bits = bor(bits,1)
+	       bits = bit.bor(bits,1)
 	    end
 	    if method.no_wait then
-	       bits = bor(bits,2)
+	       bits = bit.bor(bits,2)
 	    end
 	    b:put_i8(bits)
 	    return b:payload()
@@ -503,13 +491,13 @@ local methods_ = {
 	    b:put_short_string(method.queue)
 	    local bits = 0
 	    if method.if_unused then
-	       bits = bor(bits,1)
+	       bits = bit.bor(bits,1)
 	    end
 	    if method.if_empty then
-	       bits = bor(bits,2)
+	       bits = bit.bor(bits,2)
 	    end
 	    if method.no_wait then
-	       bits = bor(bits, 4)
+	       bits = bit.bor(bits, 4)
 	    end
 	    b:put_i8(bits)
 	    return b:payload()
@@ -557,7 +545,7 @@ local methods_ = {
 	    b:put_short_string(method.queue)
 	    local bits = 0
 	    if method.no_wait then
-	       bits = bor(bits, 1)
+	       bits = bit.bor(bits, 1)
 	    end
 	    b:put_i8(bits)
 	    return b:payload()
@@ -742,10 +730,10 @@ local methods_ = {
 	    b:put_short_string(method.routing_key)
 	    local bits = 0
 	    if method.mandatory then
-	       bits = bor(bits,1)
+	       bits = bit.bor(bits,1)
 	    end
 	    if method.immediate then
-	       bits = bor(bits,2)
+	       bits = bit.bor(bits,2)
 	    end
 	    b:put_i8(bits)
 	    return b:payload()
@@ -809,8 +797,8 @@ local methods_ = {
 	    local f = {}
 	    f.delivery_tag = b:get_short_string()
 	    local v = b:get_i8()
-	    f.multiple = (band(v,0x1) ~= 0)
-	    f.requeue = (band(v,0x2) ~= 0)
+	    f.multiple = (bit.band(v,0x1) ~= 0)
+	    f.requeue = (bit.band(v,0x2) ~= 0)
 	    return f
 	 end,
 	 w = function(method)
@@ -818,10 +806,10 @@ local methods_ = {
 	    b:put_short_string(method.delivery_tag)
 	    local bits = 0
 	    if method.multiple and method.multiple ~= 0 then
-	       bits = bor(bits, 1)
+	       bits = bit.bor(bits, 1)
 	    end
 	    if method.requeue and method.requeue ~= 0 then
-	       bits = bor(bit, 2)
+	       bits = bit.bor(bit, 2)
 	    end
 	    b:put_i16(bits)
 	    return b:payload()
@@ -951,59 +939,59 @@ local function header_frame(ctx,channel,size)
    f.body_size = b:get_i64()
    local flag = b:get_i16()
    f.flag = flag
-   if band(flag,c.flag.CONTENT_TYPE) ~= 0 then
+   if bit.band(flag,c.flag.CONTENT_TYPE) ~= 0 then
       f.properties.content_type= b:get_short_string()
    end
 
-   if band(flag,c.flag.CONTENT_ENCODING) ~= 0 then
+   if bit.band(flag,c.flag.CONTENT_ENCODING) ~= 0 then
       f.properties.content_encoding = b:get_short_string()
    end
 
-   if band(flag,c.flag.HEADERS) ~= 0 then
+   if bit.band(flag,c.flag.HEADERS) ~= 0 then
       f.properties.headers = b:get_field_table()
    end
 
-   if band(flag,c.flag.DELIVERY_MODE) ~= 0 then
+   if bit.band(flag,c.flag.DELIVERY_MODE) ~= 0 then
       f.properties.delivery_mode = b:get_i8()
    end
 
-   if band(flag,c.flag.PRIORITY) ~= 0 then
+   if bit.band(flag,c.flag.PRIORITY) ~= 0 then
       f.properties.priority = b:get_i8()
    end
 
-   if band(flag,c.flag.CORRELATION_ID) ~= 0 then
+   if bit.band(flag,c.flag.CORRELATION_ID) ~= 0 then
       f.properties.correlation_id = b:get_short_string()
    end
    
-   if band(flag,c.flag.REPLY_TO) ~= 0 then
+   if bit.band(flag,c.flag.REPLY_TO) ~= 0 then
       f.properties.reply_to = b:get_short_string()
    end
    
-   if band(flag,c.flag.EXPIRATION) ~= 0 then
+   if bit.band(flag,c.flag.EXPIRATION) ~= 0 then
       f.properties.expiration = b:get_short_string()
    end
    
-   if band(flag,c.flag.MESSAGE_ID) ~= 0 then
+   if bit.band(flag,c.flag.MESSAGE_ID) ~= 0 then
       f.properties.message_id = b:get_short_string()
    end
    
-   if band(flag,c.flag.TIMESTAMP) ~= 0 then
+   if bit.band(flag,c.flag.TIMESTAMP) ~= 0 then
       f.properties.timestamp = b:get_timestamp()
    end
    
-   if band(flag,c.flag.TYPE) ~= 0 then
+   if bit.band(flag,c.flag.TYPE) ~= 0 then
       f.properties.type, pos = b:get_short_string()
    end
    
-   if band(flag,c.flag.USER_ID) ~= 0 then
+   if bit.band(flag,c.flag.USER_ID) ~= 0 then
       f.properties.user_id = b:get_short_string()
    end
 
-   if band(flag,c.flag.APP_ID) ~= 0 then
+   if bit.band(flag,c.flag.APP_ID) ~= 0 then
       f.properties.app_id = b:get_short_string()
    end
    
-   if band(flag,c.flag.RESERVED1) ~= 0 then
+   if bit.band(flag,c.flag.RESERVED1) ~= 0 then
       f.properties.resvered1 = b:get_short_string()
    end
    
@@ -1120,41 +1108,41 @@ local function flags_mask(frame)
       return mask
    end
    if frame.properties.content_type ~= nil then
-      mask = bor(mask,c.flag.CONTENT_TYPE)
+      mask = bit.bor(mask,c.flag.CONTENT_TYPE)
    end
 
    if frame.properties.content_encoding ~= nil then
-      mask = bor(mask,c.flag.CONTENT_ENCODING)
+      mask = bit.bor(mask,c.flag.CONTENT_ENCODING)
    end
    if frame.properties.headers ~= nil then
-      mask = bor(mask,c.flag.HEADERS)
+      mask = bit.bor(mask,c.flag.HEADERS)
    end
    if frame.properties.delivery_mode ~= nil then
-      mask = bor(mask,c.flag.DELIVERY_MODE)
+      mask = bit.bor(mask,c.flag.DELIVERY_MODE)
    end
    if frame.properties.priority ~= nil then
-      mask = bor(mask,c.flag.PRIORITY)
+      mask = bit.bor(mask,c.flag.PRIORITY)
    end
    if frame.properties.correlation_id ~= nil then
-      mask = bor(mask,c.flag.CORRELATION_ID)
+      mask = bit.bor(mask,c.flag.CORRELATION_ID)
    end
    if frame.properties.reply_to ~= nil then
-      mask = bor(mask,c.flag.REPLY_TO)
+      mask = bit.bor(mask,c.flag.REPLY_TO)
    end
    if frame.properties.expiration ~= nil then
-      mask = bor(mask,c.flag.EXPIRATION)
+      mask = bit.bor(mask,c.flag.EXPIRATION)
    end
    if frame.properties.timestamp ~= nil then
-      mask = bor(mask,c.flag.TIMESTAMP)
+      mask = bit.bor(mask,c.flag.TIMESTAMP)
    end
    if frame.properties.type ~= nil then
-      mask = bor(mask,c.flag.TYPE)
+      mask = bit.bor(mask,c.flag.TYPE)
    end
    if frame.properties.user_id ~= nil then
-      mask = bor(mask,c.flag.USER_ID)
+      mask = bit.bor(mask,c.flag.USER_ID)
    end
    if frame.properties.app_id ~= nil then
-      mask = bor(mask,c.flag.APP_ID)
+      mask = bit.bor(mask,c.flag.APP_ID)
    end
 
    return mask
@@ -1168,55 +1156,55 @@ local function encode_header_frame(frame)
 
    local flags = flags_mask(frame)
    b:put_i16(flags)
-   if band(flags,c.flag.CONTENT_TYPE) ~= 0 then
+   if bit.band(flags,c.flag.CONTENT_TYPE) ~= 0 then
       b:put_short_string(f.properties.content_type)
    end
 
-   if band(flags,c.flag.CONTENT_ENCODING) ~= 0 then
+   if bit.band(flags,c.flag.CONTENT_ENCODING) ~= 0 then
       b:put_short_string(f.properties.content_encoding)
    end
 
-   if band(flags,c.flag.HEADERS) ~= 0 then
+   if bit.band(flags,c.flag.HEADERS) ~= 0 then
       b:put_field_table(f.properties.headers)
    end
 
-   if band(flags,c.flag.DELIVERY_MODE) ~= 0 then
+   if bit.band(flags,c.flag.DELIVERY_MODE) ~= 0 then
       b:put_i8(f.properties.delivery_mode)
    end
 
-   if band(flags,c.flag.PRIORITY) ~= 0 then
+   if bit.band(flags,c.flag.PRIORITY) ~= 0 then
       b:put_i8(f.properties.priority)
    end
 
-   if band(flags,c.flag.CORRELATION_ID) ~= 0 then
+   if bit.band(flags,c.flag.CORRELATION_ID) ~= 0 then
       b:put_short_string(f.properties.correlation_id)
    end
    
-   if band(flags,c.flag.REPLY_TO) ~= 0 then
+   if bit.band(flags,c.flag.REPLY_TO) ~= 0 then
       b:put_short_string(f.properties.reply_to)
    end
    
-   if band(flags,c.flag.EXPIRATION) ~= 0 then
+   if bit.band(flags,c.flag.EXPIRATION) ~= 0 then
       b:put_short_string(f.properties.expiration)
    end
    
-   if band(flags,c.flag.MESSAGE_ID) ~= 0 then
+   if bit.band(flags,c.flag.MESSAGE_ID) ~= 0 then
       b:put_short_string(f.properties.message_id)
    end
    
-   if band(flags,c.flag.TIMESTAMP) ~= 0 then
+   if bit.band(flags,c.flag.TIMESTAMP) ~= 0 then
       b:put_time_stamp(f.properties.timestamp)
    end
    
-   if band(flags,c.flag.TYPE) ~= 0 then
+   if bit.band(flags,c.flag.TYPE) ~= 0 then
       b:put_short_string(f.properties.type)
    end
    
-   if band(flags,c.flag.USER_ID) ~= 0 then
+   if bit.band(flags,c.flag.USER_ID) ~= 0 then
       b:put_short_string(f.properties.user_id)
    end
 
-   if band(flags,c.flag.APP_ID) ~= 0 then
+   if bit.band(flags,c.flag.APP_ID) ~= 0 then
       b:put_short_string(f.properties.app_id)
    end
 
