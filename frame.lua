@@ -1304,9 +1304,9 @@ function _M.wire_header_frame(ctx,body_size)
    return bytes
 end
 
-function _M.wire_body_frame(ctx,payload)
+function _M.wire_body_frame(ctx,payload, s, e)
    local frame = _M.new(c.frame.BODY_FRAME,ctx.opts.channel or 1)
-   frame.body = payload
+   frame.body = payload:sub(s, e)
    local msg = frame:encode()
    local sock = ctx.sock
    local bytes, err = sock:send(msg)
