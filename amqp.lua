@@ -8,12 +8,8 @@ local c = require "consts"
 local frame = require "frame"
 local logger = require "logger"
 
-local bit = require "bit"
-local band = bit.band
-local bor = bit.bor
-local lshift = bit.lshift
-local rshift = bit.rshift
-local tohex = bit.tohex
+-- Try to load bit library
+local bit = require "bitopers"
 
 local format = string.format
 local gmatch = string.gmatch
@@ -467,7 +463,7 @@ local function timedout(ctx, timeouts)
    local threshold = ctx.threshold or 4
    local c = 0
    for i = 1, window do
-      if band(rshift(timeouts,i-1),1) ~= 0 then
+      if bit.band(bit.rshift(timeouts,i-1),1) ~= 0 then
 	 c = c + 1
       end
    end
@@ -544,7 +540,7 @@ function amqp:consume()
 	 local now = os.time()
 	 if now - hb.last > c.DEFAULT_HEARTBEAT then
 	    logger.info("[amqp.consume] timeouts inc. [ts]: ",now)
-	    hb.timeouts = bor(lshift(hb.timeouts,1),1)
+	    hb.timeouts = bit.bor(bit.lshift(hb.timeouts,1),1)
 	    hb.last = now
 	    local ok, err0 = frame.wire_heartbeat(self)
 	    if not ok then
@@ -601,7 +597,7 @@ function amqp:consume()
       elseif f.type == c.frame.HEARTBEAT_FRAME then
 	 hb.last = os.time()
 	 logger.info("[heartbeat]","ping received. [ts]: ",hb.last)
-	 hb.timeouts = band(lshift(hb.timeouts,1),0)
+	 hb.timeouts = bit.band(bit.lshift(hb.timeouts,1),0)
 	 local ok, err0 = frame.wire_heartbeat(self)
 	 if not ok then
 	    logger.error("[heartbeat]","pong error: " .. error_string(err0) .. "[ts]: ", hb.last)
